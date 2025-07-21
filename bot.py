@@ -1,10 +1,7 @@
 import discord
 from discord.ext import commands
-import random
-from game_mechanics import create_board, handle_move
-from display import board_to_string
-from constants import HP_PER_LEVEL
 from config import BOT_TOKEN
+from games.dungeon_crawler.manager import handle_start as handle_start_dungeon, handle_move as handle_move_dungeon, game_state as game_state_dungeon
 
 # Bot setup
 intents = discord.Intents.default()
@@ -14,82 +11,65 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # Remove default help command
 bot.remove_command('help')
 
-# Game state storage
-game_state = {}
-
 # Commands
-@bot.command(name='gamehelp')
+@bot.command(aliases=['help'])
 async def gamehelp(ctx):
     help_text = (
         "**Available Commands:**\n"
-        "`!start [boards]` - Start a new dungeon crawler game (default 1 board).\n"
-        "`!move <direction> [steps]` or `!m <u/d/l/r> [steps]` - Move the player (up, down, left, right or u, d, l, r). Optional steps (e.g., `!m r 3`).\n"
-        "`!u [steps]`, `!d [steps]`, `!l [steps]`, `!r [steps]` - Move up, down, left, or right (e.g., `!d 3`).\n"
-        "`!gamehelp` - Show this help message."
+        "`!help or !gamehelp` - Show this help message.\n"
+        "`!start [game]` - Start a new game.\n"
+        "`!start dungeon [boards] [fog|fogless]` - Start a new dungeon crawler game (default 1 board and fogless).\n"
+        "`!move <direction> [steps]` or `!m <u/d/l/r> [steps]` or `!<u/d/l/r> [steps]` - Move the player (up, down, left, right or u, d, l, r). Step count is 1 by default. (ex: `!move right`, `!move right 3`, `!m r`, `!m r 3`, `!r`, `!r 3`).\n"
     )
     await ctx.send(help_text)
 
 @bot.command(aliases=['m', 'u', 'd', 'l', 'r'])
 async def move(ctx, direction: str = None, steps: int = 1):
-    user_id = ctx.author.id
-
-    # Handle single-letter alias with just a number (e.g., !d 3)
-    invoked = ctx.invoked_with.lower()
-    if invoked in ['u', 'd', 'l', 'r']:
-        # If direction is actually a number, swap
-        if direction is not None and direction.isdigit():
-            steps = int(direction)
-            direction = invoked
-        else:
-            direction = invoked
-
-    if direction is None:
-        await ctx.send("Specify a direction (u/d/l/r or up/down/left/right).")
-        return
-    
-    if user_id not in game_state or not game_state[user_id]['game_active']:
-        await ctx.send("No active game! Start one with !start.")
-        return
-
-    continue_game, message_id = await handle_move(ctx, game_state, user_id, direction, steps)
-    if not continue_game:
-        return
-
-    board = game_state[user_id]['board']
-    player_pos = game_state[user_id]['player_pos']
-    player_stats = game_state[user_id]['player_stats']
-    move_count = game_state[user_id]['move_count']
-
-    board_message = board_to_string(board, player_pos, player_stats, move_count, game_state[user_id]['current_board'], game_state[user_id]['total_boards'])
-    if move_count % 5 == 0 or not message_id:
-        msg = await ctx.send(board_message)
-        game_state[user_id]['message_id'] = msg.id
-    else:
-        try:
-            msg = await ctx.channel.fetch_message(message_id)
-            await msg.edit(content=board_message)
-        except discord.NotFound:
-            msg = await ctx.send(board_message)
-            game_state[user_id]['message_id'] = msg.id
+    await handle_move_dungeon(ctx, direction, steps)
 
 @bot.command()
-async def start(ctx, total_boards: int = 1):
-    user_id = ctx.author.id
-    if user_id in game_state and game_state[user_id]['game_active']:
-        await ctx.send("You already have an active game! Use !move, !m, !u, !d, !l, or !r to continue.")
+async def start(ctx, game: str = None, *modifiers):
+    if game is None:
+        await ctx.send("Specify a game to start. Example: !start dungeon 2 fog")
         return
-    game_state[user_id] = {
-        'board': create_board(total_boards, 1),
-        'player_pos': random.choice([(4, 4), (4, 5), (5, 4), (5, 5)]),
-        'player_stats': {'current_hp': HP_PER_LEVEL[1], 'max_hp': HP_PER_LEVEL[1], 'level': 1, 'xp': 0, 'inventory': [None] * 4},
-        'game_active': True,
-        'move_count': 0,
-        'message_id': None,
-        'current_board': 1,
-        'total_boards': max(1, total_boards)
-    }
-    msg = await ctx.send(board_to_string(game_state[user_id]['board'], game_state[user_id]['player_pos'], game_state[user_id]['player_stats'], 0, 1, game_state[user_id]['total_boards']))
-    game_state[user_id]['message_id'] = msg.id
+    
+    # Prevent multiple games in the same channel
+    from games.dungeon_crawler.manager import game_state
+    channel_id = ctx.channel.id
+    for state in game_state.values():
+        if state.get('channel_id') == channel_id and state.get('game_active'):
+            await ctx.send("A game is already running in this channel. End it with !end before starting a new one.")
+            return
+
+    if game.lower() == "dungeon":
+        # Parse boards modifier if present
+        total_boards = 1
+        fog_mode = 'fogless'
+        if modifiers:
+            for mod in modifiers:
+                if mod.isdigit():
+                    total_boards = int(mod)
+                elif mod.lower() in ['fog', 'fogless']:
+                    fog_mode = mod.lower()
+        await handle_start_dungeon(ctx, total_boards, fog_mode)
+    else:
+        await ctx.send(f"Unknown game '{game}'. Available games: dungeon")
+
+@bot.command()
+async def end(ctx):
+    channel_id = ctx.channel.id
+    #print(f"Attempting to end game in channel {channel_id}, current game_state: {game_state_dungeon}")  # Debug
+    
+    ended = False
+    for user_id, state in list(game_state_dungeon.items()):
+        if state.get('channel_id') == channel_id and state.get('game_active'):
+            state['game_active'] = False    
+            del game_state_dungeon[user_id]
+            ended = True
+    if ended:
+        await ctx.send("Game ended in this channel.")
+    else:
+        await ctx.send("No active game to end in this channel.")
 
 # Bot event
 @bot.event

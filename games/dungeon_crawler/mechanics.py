@@ -1,36 +1,37 @@
 import random
-from constants import BOARD_SIZE, MAX_STEPS, ENEMY_XP, ENEMY_DAMAGE, ITEM_BONUSES, HP_PER_LEVEL, XP_LEVELS
+from games.dungeon_crawler.constants import BOARD_SIZE, MAX_STEPS, ENEMY_XP, ENEMY_DAMAGE, ITEM_BONUSES, HP_PER_LEVEL, XP_LEVELS
 
-def create_board(total_boards, current_board):
+def create_board(total_boards, current_board, player_pos):
     board = _init_board()
-    _place_walls(board)
-    _place_enemies(board, double_spawn=True)
-    _place_items(board)
-    _place_door_or_boss(board, total_boards, current_board)
+    _place_walls(board, player_pos)
+    _place_enemies(board, player_pos, spawn_rate=2)
+    _place_items(board, player_pos)
+    _place_door_or_boss(board, total_boards, current_board) # Place door or boss in a corner while player in center
     return board
 
 def _init_board():
     return [['floor' for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
 
-def _get_reserved_positions():
-    # Reserved for player spawn
-    return [(4, 4), (4, 5), (5, 4), (5, 5)]
+def _get_reserved_positions(player_pos):
+    # Reserve only the player's spawn position
+    return [player_pos]
 
-def _place_walls(board):
-    num_walls = int(BOARD_SIZE * BOARD_SIZE * 0.1) # 10% of the board
-    reserved = set(_get_reserved_positions())
+def _place_walls(board, player_pos):
+    random_wall_percentage = random.uniform(0.1, 0.3)
+    num_walls = int(BOARD_SIZE * BOARD_SIZE * random_wall_percentage) # 10% to 30% of the board
+    reserved = set(_get_reserved_positions(player_pos))
     candidates = [(x, y) for y in range(BOARD_SIZE) for x in range(BOARD_SIZE) if (x, y) not in reserved]
     wall_positions = random.sample(candidates, num_walls)
     for x, y in wall_positions:
         board[y][x] = 'wall'
 
-def _place_enemies(board, double_spawn=False):
-    reserved = set(_get_reserved_positions())
+def _place_enemies(board, player_pos, spawn_rate=1):
+    reserved = set(_get_reserved_positions(player_pos))
     floor_tiles = [(x, y) for y in range(BOARD_SIZE) for x in range(BOARD_SIZE)
                    if board[y][x] == 'floor' and (x, y) not in reserved]
     random.shuffle(floor_tiles)
     base_enemies = ['enemy1', 'enemy2', 'enemy3']
-    enemy_types = base_enemies * (2 if double_spawn else 1)
+    enemy_types = base_enemies * spawn_rate
     placements = []
     for enemy in enemy_types:
         if floor_tiles:
@@ -39,8 +40,8 @@ def _place_enemies(board, double_spawn=False):
     for enemy, (x, y) in placements:
         board[y][x] = enemy
 
-def _place_items(board):
-    reserved = set(_get_reserved_positions())
+def _place_items(board, player_pos):
+    reserved = set(_get_reserved_positions(player_pos))
     floor_tiles = [(x, y) for y in range(BOARD_SIZE) for x in range(BOARD_SIZE)
                    if board[y][x] == 'floor' and (x, y) not in reserved]
     random.shuffle(floor_tiles)
@@ -50,7 +51,7 @@ def _place_items(board):
             x, y = floor_tiles.pop()
             board[y][x] = item
 
-def _place_door_or_boss(board, total_boards, current_board):
+def _place_door_or_boss(board, total_boards, current_board): # Always in a corner
     corner = random.choice([(0, 0), (0, BOARD_SIZE-1), (BOARD_SIZE-1, 0), (BOARD_SIZE-1, BOARD_SIZE-1)])
     if current_board < total_boards:
         board[corner[1]][corner[0]] = 'door'
@@ -87,8 +88,6 @@ async def handle_move(ctx, game_state, user_id, direction, steps):
     player_stats = game_state[user_id]['player_stats']
     move_count = game_state[user_id]['move_count'] + 1
     message_id = game_state[user_id].get('message_id')
-    current_board = game_state[user_id]['current_board']
-    total_boards = game_state[user_id]['total_boards']
 
     direction_map = {'u': 'up', 'd': 'down', 'l': 'left', 'r': 'right'}
     direction = direction_map.get(direction.lower(), direction.lower())
@@ -97,6 +96,8 @@ async def handle_move(ctx, game_state, user_id, direction, steps):
         return False, None
 
     x, y = player_pos
+    event_tiles = ['wall', 'door', 'enemy1', 'enemy2', 'enemy3', 'sword', 'shield', 'boss']  # Define event tiles
+
     for _ in range(min(steps, MAX_STEPS)):
         if direction == 'up':
             new_pos = (x, y - 1)
@@ -114,39 +115,40 @@ async def handle_move(ctx, game_state, user_id, direction, steps):
             await ctx.send("You hit a wall!")
             break
 
-        if board[new_pos[1]][new_pos[0]] in ['sword', 'shield']:
-            await _pickup_item(ctx, player_stats, board, new_pos)
-            break
+        # Mark current position as visited before any action
+        if board[y][x] == 'floor':
+            board[y][x] = 'visited_floor'
 
-        if board[new_pos[1]][new_pos[0]] in ['enemy1', 'enemy2', 'enemy3']:
-            enemy_type = board[new_pos[1]][new_pos[0]]
-            enemy_level = {'enemy1': 1, 'enemy2': 2, 'enemy3': 3}[enemy_type]
-            win, xp_gain = await handle_combat(ctx, player_stats, enemy_type, enemy_level)
-            if win:
-                board[new_pos[1]][new_pos[0]] = 'floor'
-            else:
-                if player_stats['current_hp'] <= 0:
-                    await ctx.send("You died! Game over!")
+        # Check if new position is an event tile
+        if board[new_pos[1]][new_pos[0]] in event_tiles:
+            if board[new_pos[1]][new_pos[0]] in ['sword', 'shield']:
+                await _pickup_item(ctx, player_stats, board, new_pos)
+            elif board[new_pos[1]][new_pos[0]] in ['enemy1', 'enemy2', 'enemy3']:
+                enemy_type = board[new_pos[1]][new_pos[0]]
+                enemy_level = {'enemy1': 1, 'enemy2': 2, 'enemy3': 3}[enemy_type]
+                win, _ = await handle_combat(ctx, player_stats, enemy_type, enemy_level)
+                if win:
+                    board[new_pos[1]][new_pos[0]] = 'visited_floor'
+                else:
+                    if player_stats['current_hp'] <= 0:
+                        await ctx.send("You died! Game over!")
+                        game_state.pop(user_id)
+                        return False, None
+            elif board[new_pos[1]][new_pos[0]] == 'door':
+                await _enter_door(ctx, game_state, user_id, move_count)
+                return True, message_id
+            elif board[new_pos[1]][new_pos[0]] == 'boss':
+                win, _ = await handle_combat(ctx, player_stats, 'boss', 5)
+                if win:
+                    await ctx.send("You defeated the final boss! You win!")
                     game_state.pop(user_id)
                     return False, None
-                break
-
-        if board[new_pos[1]][new_pos[0]] == 'door':
-            await _enter_door(ctx, game_state, user_id, move_count)
-            return True, message_id
-
-        if board[new_pos[1]][new_pos[0]] == 'boss':
-            win, _ = await handle_combat(ctx, player_stats, 'boss', 5)
-            if win:
-                await ctx.send("You defeated the final boss! You win!")
-                game_state.pop(user_id)
-                return False, None
-            else:
-                if player_stats['current_hp'] <= 0:
-                    await ctx.send("You died! Game over!")
-                    game_state.pop(user_id)
-                    return False, None
-                break
+                else:
+                    if player_stats['current_hp'] <= 0:
+                        await ctx.send("You died! Game over!")
+                        game_state.pop(user_id)
+                        return False, None
+            break  # Stop movement after handling the event
 
         await _check_level_up(ctx, player_stats)
 
@@ -169,8 +171,9 @@ async def _pickup_item(ctx, player_stats, board, pos):
 async def _enter_door(ctx, game_state, user_id, move_count):
     game_state[user_id]['current_board'] += 1
     total_boards = game_state[user_id]['total_boards']
-    game_state[user_id]['board'] = create_board(total_boards, game_state[user_id]['current_board'])
-    game_state[user_id]['player_pos'] = random.choice(_get_reserved_positions())
+    player_pos = random.choice([(4, 4), (4, 5), (5, 4), (5, 5)])
+    game_state[user_id]['board'] = create_board(total_boards, game_state[user_id]['current_board'], player_pos)
+    game_state[user_id]['player_pos'] = player_pos
     await ctx.send(f"Entered door to board {game_state[user_id]['current_board']}/{total_boards}!")
     game_state[user_id]['move_count'] = move_count
 
