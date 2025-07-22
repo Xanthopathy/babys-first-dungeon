@@ -20,9 +20,19 @@ def board_to_string(board, player_pos, player_stats, move_count, current_board, 
                 display += BACKGROUND_EMOJIS[board[y][x]]
         display += "\n"
 
-    # HP | LEVEL | XP | Inventory
-    inventory_display = [BACKGROUND_EMOJIS[item] if item else BACKGROUND_EMOJIS['empty_slot'] for item in player_stats['inventory']]
+    # Stats
+    gear_display = [BACKGROUND_EMOJIS[item] if item else BACKGROUND_EMOJIS['empty_slot'] for item in player_stats['gear']]
+    skills_display = [item if item else BACKGROUND_EMOJIS['empty_slot'] for item in player_stats['skills']]
+    items_display = [item if item else BACKGROUND_EMOJIS['empty_slot'] for item in player_stats['items']]
     next_xp = XP_LEVELS.get(player_stats['level'] + 1, float('inf'))
-    display += f"\nHP: {player_stats['current_hp']}/{player_stats['max_hp']} | Level: {player_stats['level']} | XP: {player_stats['xp']}/{next_xp} | Inventory: {' '.join(inventory_display)}"
+    display += (
+        f"\n❤️HP: {player_stats['current_hp']}/{player_stats['max_hp']} | "
+        f"⬆️Level: {player_stats['level']} | ⭐XP: {player_stats['xp']}/{next_xp} | "
+        f"🪙Gold: {player_stats['gold']}\n"
+        f"⚔️Attack: {player_stats['attack']} | 🛡️Defense: {player_stats['defense']} | 🔮Magic: {player_stats['magic']}\n"
+        f"Gear: {' '.join(gear_display)}\n" 
+        f"Skills: {' '.join(skills_display)}\n"
+        f"Items: {' '.join(items_display)}"
+    )
 
     return display

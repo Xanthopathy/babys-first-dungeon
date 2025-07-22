@@ -6,7 +6,7 @@ from games.dungeon_crawler.manager import handle_start as handle_start_dungeon, 
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='$', intents=intents)
 
 # Remove default help command
 bot.remove_command('help')
@@ -16,21 +16,21 @@ bot.remove_command('help')
 async def gamehelp(ctx):
     help_text = (
         "**Available Commands:**\n"
-        "`!help or !gamehelp` - Show this help message.\n"
-        "`!start [game]` - Start a new game.\n"
-        "`!start dungeon [boards] [fog|fogless]` - Start a new dungeon crawler game (default 1 board and fogless).\n"
-        "`!move <direction> [steps]` or `!m <u/d/l/r> [steps]` or `!<u/d/l/r> [steps]` - Move the player (up, down, left, right or u, d, l, r). Step count is 1 by default. (ex: `!move right`, `!move right 3`, `!m r`, `!m r 3`, `!r`, `!r 3`).\n"
+        "`$help or $gamehelp` - Show this help message.\n"
+        "`$start [game]` - Start a new game.\n"
+        "`$start dungeon [boards] [fog|fogless]` - Start a new dungeon crawler game (default 1 board and fogless).\n"
+        "`$move <direction> [steps]` or `$m <u/d/l/r> [steps]` or `$<u/d/l/r> [steps]` - Move the player (up, down, left, right or u, d, l, r). Step count is 1 by default. (ex: `$move right`, `$move right 3`, `$m r`, `$m r 3`, `$r`, `$r 3`).\n"
     )
     await ctx.send(help_text)
 
-@bot.command(aliases=['m', 'u', 'd', 'l', 'r'])
+@bot.command(aliases=['m', 'u', 'd', 'l', 'r', 'up', 'down', 'left', 'right'])
 async def move(ctx, direction: str = None, steps: int = 1):
     await handle_move_dungeon(ctx, direction, steps)
 
 @bot.command()
 async def start(ctx, game: str = None, *modifiers):
     if game is None:
-        await ctx.send("Specify a game to start. Example: !start dungeon 2 fog")
+        await ctx.send("Specify a game to start. Example: $start dungeon 2 fog")
         return
     
     # Prevent multiple games in the same channel
@@ -38,7 +38,7 @@ async def start(ctx, game: str = None, *modifiers):
     channel_id = ctx.channel.id
     for state in game_state.values():
         if state.get('channel_id') == channel_id and state.get('game_active'):
-            await ctx.send("A game is already running in this channel. End it with !end before starting a new one.")
+            await ctx.send("A game is already running in this channel. End it with $end before starting a new one.")
             return
 
     if game.lower() == "dungeon":

@@ -9,9 +9,9 @@ BACKGROUND_EMOJIS = {
     'enemy1': '👾',  # Level 1 enemy
     'enemy2': '👹',  # Level 2 enemy
     'enemy3': '😈',  # Level 3 enemy
-    'sword': '🗡️',  # +2 power
-    'shield': '🛡️',  # +3 power
-    'empty_slot': '⬜'
+    'sword': '🗡️',  # +2 atk
+    'shield': '🛡️',  # +3 def
+    'empty_slot': '◽'
 }
 
 # Game settings
@@ -39,9 +39,9 @@ ENEMY_DAMAGE = {
     'boss': 5
 }  # Damage per enemy
 ITEM_BONUSES = {
-    'sword': 2, 
-    'shield': 3
-}  # Power bonuses for items
+    'sword': {'attack': 2}, 
+    'shield': {'defense': 3}
+}  # Stat bonuses for items
 
 #🍄🍄‍🟫🪺🏔️🗻⛰️🌋🏠🏡🛖🏕️🌆🏙️🌳🌴🌲
 #🟥 🟧 🟨 🟩 🟦 🟪 🟫 ⬜ ⬛

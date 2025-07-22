@@ -14,12 +14,12 @@ async def handle_start(ctx, total_boards, fog_mode):
     # Prevent multiple games in the same channel
     for state in game_state.values():
         if state.get('channel_id') == channel_id and state.get('game_active'):
-            await ctx.send("A game is already running in this channel. End it with !end before starting a new one.")
+            await ctx.send("A game is already running in this channel. End it with $end before starting a new one.")
             return
         
     # Prevent multiple games for the same user
     if user_id in game_state and game_state[user_id]['game_active']:
-        await ctx.send("You already have an active game! Use !move, !m, !u, !d, !l, or !r to continue.")
+        await ctx.send("You already have an active game. Use $move, $m, $u, $d, $l, or $r to continue.")
         return
     
     # Initialize game state
@@ -42,8 +42,14 @@ async def handle_start(ctx, total_boards, fog_mode):
             'max_hp': HP_PER_LEVEL[1], 
             'level': 1, 
             'xp': 0, 
-            'inventory': [None] * 4
-        },
+            'attack': 5,
+            'defense': 5,
+            'magic': 5,
+            'gold': 0,
+            'gear': [None] * 2,
+            'items': [None] * 2,
+            'skills': [None] * 1
+        }, # potentially increase 1 slot per extra board, currently balance around 2 boards
         'game_active': True,
         'move_count': 0,
         'message_id': None,
@@ -70,8 +76,7 @@ async def handle_start(ctx, total_boards, fog_mode):
 async def handle_move(ctx, direction, steps):
     user_id = ctx.author.id
 
-    # Handle single-letter alias with just a number (e.g., !d 3)
-    invoked = ctx.invoked_with.lower()
+    invoked = ctx.invoked_with.lower() # $d 3
     if invoked in ['u', 'd', 'l', 'r']:
         if direction is not None and direction.isdigit():
             steps = int(direction)
@@ -84,32 +89,22 @@ async def handle_move(ctx, direction, steps):
         return
     
     if user_id not in game_state or not game_state[user_id]['game_active']:
-        await ctx.send("No active game! Start one with !start.")
+        await ctx.send("No active game. Start one with $start.")
         return
 
     continue_game, message_id = await mechanics_handle_move(ctx, game_state, user_id, direction, steps)
     if not continue_game:
         return
 
-    # Update revealed tiles in fog mode
-    if game_state[user_id]['fog_mode'] == 'fog':
-        x, y = game_state[user_id]['player_pos']
-        adjacent_tiles = [
-            (x, y - 1), (x, y + 1), (x - 1, y), (x + 1, y)
-        ]
-        for pos in adjacent_tiles:
-            if 0 <= pos[0] < BOARD_SIZE and 0 <= pos[1] < BOARD_SIZE:
-                game_state[user_id]['revealed_tiles'].add(pos)
-
     board = game_state[user_id]['board']
     player_pos = game_state[user_id]['player_pos']
     player_stats = game_state[user_id]['player_stats']
-    move_count = game_state[user_id]['move_count']
+    turn_count = game_state[user_id]['move_count']
     fog_mode = game_state[user_id]['fog_mode']
     revealed_tiles = game_state[user_id]['revealed_tiles']
 
-    board_message = board_to_string(board, player_pos, player_stats, move_count, game_state[user_id]['current_board'], game_state[user_id]['total_boards'], fog_mode, revealed_tiles)
-    if move_count % 5 == 0 or not message_id:
+    board_message = board_to_string(board, player_pos, player_stats, turn_count, game_state[user_id]['current_board'], game_state[user_id]['total_boards'], fog_mode, revealed_tiles)
+    if turn_count % 5 == 0 or not message_id:
         msg = await ctx.send(board_message)
         game_state[user_id]['message_id'] = msg.id
     else:
