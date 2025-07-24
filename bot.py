@@ -13,14 +13,42 @@ bot = commands.Bot(command_prefix='$', intents=intents)
 bot.remove_command('help')
 
 # Commands
-@bot.command(aliases=['help'])
-async def gamehelp(ctx):
+@bot.command()
+async def help(ctx, *args):
+    if args and args[0].lower() == "dungeon":
+        dungeon_commands = (
+            "**Dungeon Crawler Commands:**\n"
+            "`$dungeon [boards] [fog|fogless]` - Start a new dungeon crawler game (default 1 board and fogless).\n"
+            "`$move <up/down/left/right> [steps]` or `$m <u/d/l/r> [steps]` or `$<u/d/l/r> [steps]` - Move the player 1 of 4 directions. Step count is 1 by default. (ex: `$move right`, `$move right 3`, `$m r`, `$m r 3`, `$r`, `$r 3`).\n"
+        )
+        await ctx.send(dungeon_commands)
+        return
+    if args and args[0].lower() == "splendor":
+        splendor_commands = (
+            "**Splendor Commands:**\n"
+            "`$splendor` - Start a Splendor game for 2-4 players. Players must join with `$join` and start with `$start`.\n"
+            "`$join` - Join a pending Splendor game in the channel.\n"
+            "`$start` - Start a pending Splendor game after players have joined.\n"
+            "`$end` - End the active Splendor game in the channel.\n"
+            "`$take3/t3 <gem1> <gem2> <gem3>` - Take 3 different gem tokens (e.g., `$take3 ruby emerald sapphire`).\n"
+            "`$take2/t2 <gem>` - Take 2 tokens of the same gem if 4+ are available (e.g., `$take2 ruby`).\n"
+            "`$reserve/res <level> <index>` - Reserve a card and take a gold token (e.g., `$reserve 1 1`).\n"
+            "`$purchase/buy <level> <index>` - Purchase a face-up card (e.g., `$purchase 1 1`).\n"
+            "`$purchase/buy reserved <index>` - Purchase a reserved card (e.g., `$purchase reserved 1`).\n"
+            "Gem shorthands:\n"
+            "🔴: `ruby`, `red`, `r`\n"
+            "🟢: `emerald`, `green`, `e`, `g`\n"
+            "🔵: `sapphire`, `blue`, `s`, `u`\n"
+            "⚪: diamond`, `white`, `d`, `w`\n"
+            "⚫: `onyx`, `o`, `black`, `k`\n"
+        )
+        await ctx.send(splendor_commands)
+        return
     help_text = (
         "**Available Commands:**\n"
-        "`$help or $gamehelp` - Show this help message.\n"
-        "`$dungeon [boards] [fog|fogless]` - Start a new dungeon crawler game (default 1 board and fogless).\n"
-        "`$move <up/down/left/right> [steps]` or `$m <u/d/l/r> [steps]` or `$<u/d/l/r> [steps]` - Move the player 1 of 4 directions. Step count is 1 by default. (ex: `$move right`, `$move right 3`, `$m r`, `$m r 3`, `$r`, `$r 3`).\n"
-        "`$splendor` - Start a Splendor game for 2-4 players. Players must join with `$join` and start with `$start`.\n"
+        "`$help` - Show this help message.\n"
+        "`$help dungeon` - Show help for Dungeon Crawler commands.\n"
+        "`$help splendor` - Show help for Splendor commands.\n"
         "`$join` - Join a pending game in the channel.\n"
         "`$start` - Start a pending game after players have joined.\n"
         "`$end` - End the active game in the channel.\n"
@@ -130,40 +158,55 @@ async def splendor(ctx):
     await ctx.send("A game of Splendor is starting! Players need to type `$join` to join. Minimum 2, maximum 4 players.")
 
 @bot.command(aliases=['t3'])
-async def take3(ctx, gem1: str, gem2: str, gem3: str):
+async def take3(ctx, gem1: str = None, gem2: str = None, gem3: str = None):
     channel_id = ctx.channel.id
+    if gem1 is None or gem2 is None or gem3 is None:
+        await ctx.send("Usage: `$take3 <gem1> <gem2> <gem3>` (e.g., `$take3 ruby emerald sapphire`). Use `$help splendor` for gem shorthands.")
+        return
     for user_id, state in game_state_splendor.items():
         if state.get('channel_id') == channel_id and state.get('game_active'):
-            await handle_take_three(ctx, user_id, [gem1.lower(), gem2.lower(), gem3.lower()])
+            await handle_take_three(ctx, user_id, [gem1, gem2, gem3])
             return
     await ctx.send("No active Splendor game in this channel.")
 
 @bot.command(aliases=['t2'])
-async def take2(ctx, gem: str):
+async def take2(ctx, gem: str = None):
     channel_id = ctx.channel.id
+    if gem is None:
+        await ctx.send("Usage: `$take2 <gem>` (e.g., `$take2 ruby`). Use `$help splendor` for gem shorthands.")
+        return
     for user_id, state in game_state_splendor.items():
         if state.get('channel_id') == channel_id and state.get('game_active'):
-            await handle_take_two(ctx, user_id, gem.lower())
+            await handle_take_two(ctx, user_id, gem)
             return
     await ctx.send("No active Splendor game in this channel.")
 
 @bot.command(aliases=['res'])
-async def reserve(ctx, level: str, card_index: int):
+async def reserve(ctx, level: str = None, card_index: int = None):
     channel_id = ctx.channel.id
+    if level is None or card_index is None:
+        await ctx.send("Usage: `$reserve <level> <index>` (e.g., `$reserve 1 1`).")
+        return
     for user_id, state in game_state_splendor.items():
         if state.get('channel_id') == channel_id and state.get('game_active'):
-            await handle_reserve(ctx, user_id, level.lower(), card_index)
+            await handle_reserve(ctx, user_id, level, card_index)
             return
     await ctx.send("No active Splendor game in this channel.")
 
 @bot.command(aliases=['buy'])
-async def purchase(ctx, source: str, level_or_index: str, card_index: int = None):
+async def purchase(ctx, source_or_level: str = None, index_or_level: int = None, card_index: int = None):
     channel_id = ctx.channel.id
+    if source_or_level is None or index_or_level is None:
+        await ctx.send("Usage: `$purchase <level> <index>` (e.g., `$purchase 1 1`) or `$purchase reserved <index>` (e.g., `$purchase reserved 1`).")
+        return
     for user_id, state in game_state_splendor.items():
         if state.get('channel_id') == channel_id and state.get('game_active'):
-            level = level_or_index if source.lower() == 'revealed' else 'reserved'
-            index = card_index if source.lower() == 'revealed' else int(level_or_index)
-            await handle_purchase(ctx, user_id, source.lower(), level.lower(), index)
+            source = 'revealed' if source_or_level.lower() != 'reserved' else 'reserved'
+            level = source_or_level if source == 'revealed' else 'reserved'
+            index = index_or_level if source == 'revealed' else source_or_level
+            if source == 'revealed' and card_index is not None:
+                index = card_index
+            await handle_purchase(ctx, user_id, source, level, index)
             return
     await ctx.send("No active Splendor game in this channel.")
 

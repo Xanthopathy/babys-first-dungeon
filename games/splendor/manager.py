@@ -3,6 +3,7 @@ from games.splendor.mechanics import setup_game, take_three_different, take_two_
 from games.splendor.display import display_board
 
 game_state = {}
+BOARD_REPOST_TURNS = 1
 
 async def handle_start(ctx):
     user_id = ctx.author.id
@@ -69,6 +70,19 @@ async def handle_start_game(ctx, user_id):
     message = await ctx.send(board_display)
     game_state[user_id]['last_board_message_id'] = message.id  # Store initial board message ID
 
+async def update_board_message(ctx, state, board_display): # helper
+    if state['turn_count'] % BOARD_REPOST_TURNS == 0 or state['last_board_message_id'] is None:
+        new_message = await ctx.send(board_display)
+        state['last_board_message_id'] = new_message.id
+    else:
+        try:
+            channel = ctx.channel
+            old_message = await channel.fetch_message(state['last_board_message_id'])
+            await old_message.edit(content=board_display)
+        except:
+            new_message = await ctx.send(board_display)
+            state['last_board_message_id'] = new_message.id
+
 async def handle_take_three(ctx, user_id, colors):
     state = game_state.get(user_id)
     if not state or not state.get('game_active'):
@@ -83,17 +97,7 @@ async def handle_take_three(ctx, user_id, colors):
     if success:
         next_turn(state)
         board_display = display_board(state)
-        if state['turn_count'] % 10 == 0 or state['last_board_message_id'] is None:
-            new_message = await ctx.send(board_display)
-            state['last_board_message_id'] = new_message.id
-        else:
-            try:
-                channel = ctx.channel
-                old_message = await channel.fetch_message(state['last_board_message_id'])
-                await old_message.edit(content=board_display)
-            except:
-                new_message = await ctx.send(board_display)
-                state['last_board_message_id'] = new_message.id
+        await update_board_message(ctx, state, board_display)
 
 async def handle_take_two(ctx, user_id, color):
     state = game_state.get(user_id)
@@ -109,17 +113,7 @@ async def handle_take_two(ctx, user_id, color):
     if success:
         next_turn(state)
         board_display = display_board(state)
-        if state['turn_count'] % 10 == 0 or state['last_board_message_id'] is None:
-            new_message = await ctx.send(board_display)
-            state['last_board_message_id'] = new_message.id
-        else:
-            try:
-                channel = ctx.channel
-                old_message = await channel.fetch_message(state['last_board_message_id'])
-                await old_message.edit(content=board_display)
-            except:
-                new_message = await ctx.send(board_display)
-                state['last_board_message_id'] = new_message.id
+        await update_board_message(ctx, state, board_display)
 
 async def handle_reserve(ctx, user_id, level, card_index):
     state = game_state.get(user_id)
@@ -135,17 +129,7 @@ async def handle_reserve(ctx, user_id, level, card_index):
     if success:
         next_turn(state)
         board_display = display_board(state)
-        if state['turn_count'] % 10 == 0 or state['last_board_message_id'] is None:
-            new_message = await ctx.send(board_display)
-            state['last_board_message_id'] = new_message.id
-        else:
-            try:
-                channel = ctx.channel
-                old_message = await channel.fetch_message(state['last_board_message_id'])
-                await old_message.edit(content=board_display)
-            except:
-                new_message = await ctx.send(board_display)
-                state['last_board_message_id'] = new_message.id
+        await update_board_message(ctx, state, board_display)
 
 async def handle_purchase(ctx, user_id, source, level, card_index):
     state = game_state.get(user_id)
@@ -161,14 +145,4 @@ async def handle_purchase(ctx, user_id, source, level, card_index):
     if success:
         next_turn(state)
         board_display = display_board(state)
-        if state['turn_count'] % 10 == 0 or state['last_board_message_id'] is None:
-            new_message = await ctx.send(board_display)
-            state['last_board_message_id'] = new_message.id
-        else:
-            try:
-                channel = ctx.channel
-                old_message = await channel.fetch_message(state['last_board_message_id'])
-                await old_message.edit(content=board_display)
-            except:
-                new_message = await ctx.send(board_display)
-                state['last_board_message_id'] = new_message.id
+        await update_board_message(ctx, state, board_display)

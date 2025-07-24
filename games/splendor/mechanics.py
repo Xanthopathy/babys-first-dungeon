@@ -31,7 +31,11 @@ def setup_game(players):
 
 def take_three_different(state, player_id, gems):
     gem_map = {
-        'r': 'ruby', 'e': 'emerald', 's': 'sapphire', 'd': 'diamond', 'o': 'onyx',
+        'r': 'ruby', 'red': 'ruby', '🔴': 'ruby',
+        'e': 'emerald', 'green': 'emerald', 'g': 'emerald', '🟢': 'emerald',
+        's': 'sapphire', 'blue': 'sapphire', 'u': 'sapphire', '🔵': 'sapphire',
+        'd': 'diamond', 'white': 'diamond', 'w': 'diamond', '⚪': 'diamond',
+        'o': 'onyx', 'black': 'onyx', 'k': 'onyx', '⚫': 'onyx',
         'ruby': 'ruby', 'emerald': 'emerald', 'sapphire': 'sapphire', 'diamond': 'diamond', 'onyx': 'onyx'
     }
     mapped_gems = [gem_map.get(gem.lower(), '') for gem in gems]
@@ -47,7 +51,11 @@ def take_three_different(state, player_id, gems):
 
 def take_two_same(state, player_id, gem):
     gem_map = {
-        'r': 'ruby', 'e': 'emerald', 's': 'sapphire', 'd': 'diamond', 'o': 'onyx',
+        'r': 'ruby', 'red': 'ruby', '🔴': 'ruby',
+        'e': 'emerald', 'green': 'emerald', 'g': 'emerald', '🟢': 'emerald',
+        's': 'sapphire', 'blue': 'sapphire', 'b': 'sapphire', '🔵': 'sapphire',
+        'd': 'diamond', 'white': 'diamond', 'w': 'diamond', '⚪': 'diamond',
+        'o': 'onyx', 'black': 'onyx', '⚫': 'onyx',
         'ruby': 'ruby', 'emerald': 'emerald', 'sapphire': 'sapphire', 'diamond': 'diamond', 'onyx': 'onyx'
     }
     mapped_gem = gem_map.get(gem.lower(), '')
@@ -86,17 +94,29 @@ def purchase_card(state, player_id, source, level, card_index):
     # Check if player can afford the card
     resources = {res: sum(1 for c in state['players'][player_id]['cards'] if c['resource'] == res) for res in RESOURCES}
     tokens = state['players'][player_id].get('tokens', {})
+    gold_tokens = tokens.get('gold', 0)
     for res, cost in card['cost'].items():
         available = resources.get(res, 0) + tokens.get(res, 0)
         if available < cost:
-            return False, f"Not enough resources to purchase card."
+            needed = cost - available
+            if gold_tokens < needed:
+                return False, f"Not enough resources or gold to purchase card."
+            gold_tokens -= needed
     
-    # Pay for the card
+    # Pay for the card, using gold last
     for res, cost in card['cost'].items():
         needed = cost - resources.get(res, 0)
         if needed > 0:
-            state['players'][player_id]['tokens'][res] -= needed
-            state['tokens'][res] += needed
+            if tokens.get(res, 0) >= needed:
+                state['players'][player_id]['tokens'][res] -= needed
+                state['tokens'][res] += needed
+            else:
+                tokens_needed = min(needed, tokens.get(res, 0))
+                gold_needed = needed - tokens_needed
+                state['players'][player_id]['tokens'][res] = state['players'][player_id]['tokens'].get(res, 0) - tokens_needed
+                state['players'][player_id]['tokens']['gold'] -= gold_needed
+                state['tokens'][res] += tokens_needed
+                state['tokens']['gold'] += gold_needed
     
     # Add card to player's collection
     if source == 'reserved':
