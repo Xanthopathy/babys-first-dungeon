@@ -8,6 +8,15 @@ TOKENS = { # RGBWKY
     'gold': {'emoji': '🟡', 'count': 5} # Joker token, does not show up as a resource on the cards/tiles
 }
 
+# Permanent resources
+RESOURCES = {
+    'ruby': {'emoji': '🟥'},
+    'emerald': {'emoji': '🟩'},
+    'sapphire': {'emoji': '🟦'},
+    'diamond': {'emoji': '⬜'},
+    'onyx': {'emoji': '⬛'}
+}
+
 # Development cards (🔴🟢🔵⚪⚫ order)
 DEVELOPMENT_CARDS = { # amount are from base game, can extend to make an algorithm that generates cards
     'level_1': [ # 40 total, 8 of each resource, 0-1 prestige (7x 0, 1x 1)
