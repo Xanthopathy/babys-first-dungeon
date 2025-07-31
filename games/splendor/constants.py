@@ -4,8 +4,16 @@ TOKENS = { # RGBWKY
     'emerald': {'emoji': '🟢', 'count': 7},
     'sapphire': {'emoji': '🔵', 'count': 7},
     'diamond': {'emoji': '⚪', 'count': 7},
-    'onyx': {'emoji': '⚫', 'count': 7},
+    'onyx': {'emoji': '🟣', 'count': 7},
     'gold': {'emoji': '🟡', 'count': 5} # Joker token, does not show up as a resource on the cards/tiles
+}
+
+GEM_MAP = {
+    'ruby': 'ruby', 'r': 'ruby', 'red': 'ruby', '🔴': 'ruby',
+    'emerald': 'emerald', 'e': 'emerald', 'green': 'emerald', 'g': 'emerald', '🟢': 'emerald',
+    'sapphire': 'sapphire', 's': 'sapphire', 'blue': 'sapphire', 'b': 'sapphire', '🔵': 'sapphire',
+    'diamond': 'diamond', 'd': 'diamond', 'white': 'diamond', 'w': 'diamond', '⚪': 'diamond',
+    'onyx': 'onyx', 'o': 'onyx', 'purple': 'onyx', 'p': 'onyx', '🟣': 'onyx',
 }
 
 # Permanent resources
@@ -14,10 +22,10 @@ RESOURCES = {
     'emerald': {'emoji': '🟩'},
     'sapphire': {'emoji': '🟦'},
     'diamond': {'emoji': '⬜'},
-    'onyx': {'emoji': '⬛'}
+    'onyx': {'emoji': '🟪'}
 }
 
-# Development cards (🔴🟢🔵⚪⚫ order)
+# Development cards (🔴🟢🔵⚪🟣 order)
 DEVELOPMENT_CARDS = { # amount are from base game, can extend to make an algorithm that generates cards
     'level_1': [ # 40 total, 8 of each resource, 0-1 prestige (7x 0, 1x 1)
         # ruby
@@ -132,7 +140,7 @@ DEVELOPMENT_CARDS = { # amount are from base game, can extend to make an algorit
     ],
 }
 
-# Noble tiles (🔴🟢🔵⚪⚫ order)
+# Noble tiles (🔴🟢🔵⚪🟣 order)
 NOBLE_TILES = [
     # 4-4
     {'prestige': 3, 'bonuses': {'ruby': 4, 'emerald': 4}},

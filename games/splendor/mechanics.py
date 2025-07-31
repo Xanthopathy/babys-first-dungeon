@@ -1,5 +1,5 @@
 import random
-from games.splendor.constants import TOKENS, RESOURCES, DEVELOPMENT_CARDS, NOBLE_TILES
+from games.splendor.constants import TOKENS, GEM_MAP, RESOURCES, DEVELOPMENT_CARDS, NOBLE_TILES
 
 def setup_game(players):
     game_state = {
@@ -10,17 +10,28 @@ def setup_game(players):
             'level_2': {'deck': [], 'revealed': []},
             'level_3': {'deck': [], 'revealed': []},
         },
-        'players': {f'player_{i+1}': {'tokens': {}, 'cards': [], 'nobles': [], 'prestige': 0, 'user_id': None} for i in range(players)},
+        'players': {f'player_{i+1}': {'tokens': {}, 'cards': [], 'nobles': [], 'prestige': 0, 'user_id': None, 'reserved': []} for i in range(players)},
         'game_active': True,
         'channel_id': None,
         'turn_count': 1,
         'turn_order': [],
         'current_turn': None,
+        'end_triggered': False,  # Track if game end is triggered
+        'final_round': False,  # Track if in final round
     }
 
-    noble_count = players + 1
+    # Adjust noble tiles based on player count
+    noble_count = players + 1 if players >= 4 else 4 if players == 3 else 3
     shuffled_nobles = random.sample(NOBLE_TILES, noble_count)
     game_state['nobles'] = shuffled_nobles
+
+    # Adjust token counts based on player count
+    if players == 3:
+        for gem in ['ruby', 'emerald', 'sapphire', 'diamond', 'onyx']:
+            game_state['tokens'][gem] = 5
+    elif players == 2:
+        for gem in ['ruby', 'emerald', 'sapphire', 'diamond', 'onyx']:
+            game_state['tokens'][gem] = 4
 
     for level in ['level_1', 'level_2', 'level_3']:
         shuffled_deck = random.sample(DEVELOPMENT_CARDS[level], len(DEVELOPMENT_CARDS[level]))
@@ -30,48 +41,58 @@ def setup_game(players):
     return game_state
 
 def take_three_different(state, player_id, gems):
-    gem_map = {
-        'r': 'ruby', 'red': 'ruby', '🔴': 'ruby',
-        'e': 'emerald', 'green': 'emerald', 'g': 'emerald', '🟢': 'emerald',
-        's': 'sapphire', 'blue': 'sapphire', 'u': 'sapphire', '🔵': 'sapphire',
-        'd': 'diamond', 'white': 'diamond', 'w': 'diamond', '⚪': 'diamond',
-        'o': 'onyx', 'black': 'onyx', 'k': 'onyx', '⚫': 'onyx',
-        'ruby': 'ruby', 'emerald': 'emerald', 'sapphire': 'sapphire', 'diamond': 'diamond', 'onyx': 'onyx'
-    }
-    mapped_gems = [gem_map.get(gem.lower(), '') for gem in gems]
-    if len(mapped_gems) != 3 or len(set(mapped_gems)) != 3 or any(g not in TOKENS for g in mapped_gems):
-        return False, "Must choose 3 different valid gems."
+    mapped_gems = []
+    for gem in gems:
+        if not gem:
+            continue
+        mapped = GEM_MAP.get(gem.lower())
+        if not mapped or mapped not in TOKENS or mapped == 'gold':
+            return False, f"Invalid gem: '{gem}'. Must choose 1-3 different valid gems (gold not allowed)."
+        mapped_gems.append(mapped)
+
+    # Check for duplicates
+    if len(mapped_gems) > 3 or len(set(mapped_gems)) != len(mapped_gems):
+        return False, "Must choose 1-3 different valid gems (no duplicates, gold not allowed)."
+
+    available_gems = [gem for gem in TOKENS if gem != 'gold' and state['tokens'].get(gem, 0) >= 1]
+    if not mapped_gems:
+        return False, f"Must specify at least one gem. Available: {', '.join(available_gems)}."
+
     for gem in mapped_gems:
         if state['tokens'].get(gem, 0) < 1:
             return False, f"Not enough {gem} tokens."
+
     for gem in mapped_gems:
         state['tokens'][gem] -= 1
         state['players'][player_id]['tokens'][gem] = state['players'][player_id]['tokens'].get(gem, 0) + 1
-    return True, "Took 3 different tokens."
+    
+    # Construct success message with turn number, username, and emojis in 🔴🟢🔵⚪🟣 order
+    username = state['joined_players'].get(state['current_turn'], {}).get('username', 'Unknown')
+    gem_order = ['ruby', 'emerald', 'sapphire', 'diamond', 'onyx']
+    sorted_gems = sorted(mapped_gems, key=lambda x: gem_order.index(x))
+    emojis = ''.join(TOKENS[gem]['emoji'] for gem in sorted_gems)
+    return True, f"Turn {state['turn_count']}: {username} took {emojis}"
 
 def take_two_same(state, player_id, gem):
-    gem_map = {
-        'r': 'ruby', 'red': 'ruby', '🔴': 'ruby',
-        'e': 'emerald', 'green': 'emerald', 'g': 'emerald', '🟢': 'emerald',
-        's': 'sapphire', 'blue': 'sapphire', 'b': 'sapphire', '🔵': 'sapphire',
-        'd': 'diamond', 'white': 'diamond', 'w': 'diamond', '⚪': 'diamond',
-        'o': 'onyx', 'black': 'onyx', '⚫': 'onyx',
-        'ruby': 'ruby', 'emerald': 'emerald', 'sapphire': 'sapphire', 'diamond': 'diamond', 'onyx': 'onyx'
-    }
-    mapped_gem = gem_map.get(gem.lower(), '')
+    mapped_gem = GEM_MAP.get(gem.lower(), '')
     if mapped_gem not in TOKENS or mapped_gem == 'gold':
         return False, "Invalid gem or gold cannot be taken."
     if state['tokens'].get(mapped_gem, 0) < 4:
         return False, f"Not enough {mapped_gem} tokens (need at least 4)."
     state['tokens'][mapped_gem] -= 2
     state['players'][player_id]['tokens'][mapped_gem] = state['players'][player_id]['tokens'].get(mapped_gem, 0) + 2
-    return True, f"Took 2 {mapped_gem} tokens."
+    # Construct success message with turn number, username, and emoji
+    username = state['joined_players'].get(state['current_turn'], {}).get('username', 'Unknown')
+    emoji = TOKENS[mapped_gem]['emoji'] * 2
+    return True, f"Turn {state['turn_count']}: {username} took {emoji}"
 
 def reserve_card(state, player_id, level, card_index):
     level_map = {'1': 'level_1', '2': 'level_2', '3': 'level_3'}
     mapped_level = level_map.get(str(level), level)
     if mapped_level not in ['level_1', 'level_2', 'level_3'] or card_index < 1 or card_index > len(state['cards'][mapped_level]['revealed']):
         return False, "Invalid card selection."
+    if len(state['players'][player_id].get('reserved', [])) >= 3:
+        return False, "You cannot reserve more than 3 cards."
     if state['tokens'].get('gold', 0) < 1:
         return False, "No gold tokens available."
     card = state['cards'][mapped_level]['revealed'].pop(card_index - 1)
@@ -81,7 +102,10 @@ def reserve_card(state, player_id, level, card_index):
     # Replenish revealed card
     if state['cards'][mapped_level]['deck']:
         state['cards'][mapped_level]['revealed'].append(state['cards'][mapped_level]['deck'].pop(0))
-    return True, "Card reserved and gold token taken."
+
+    username = state['joined_players'].get(state['current_turn'], {}).get('username', 'Unknown')
+    gold_emoji = TOKENS['gold']['emoji']
+    return True, f"Turn {state['turn_count']}: {username} reserved a level {mapped_level[-1]} card and took {gold_emoji}"
 
 def purchase_card(state, player_id, source, level, card_index):
     level_map = {'1': 'level_1', '2': 'level_2', '3': 'level_3'}
@@ -137,10 +161,47 @@ def purchase_card(state, player_id, source, level, card_index):
             state['nobles'].remove(noble)
             state['players'][player_id]['prestige'] += noble['prestige']
     
-    return True, "Card purchased."
+    username = state['joined_players'].get(state['current_turn'], {}).get('username', 'Unknown')
+    resource_emoji = RESOURCES.get(card['resource'], {}).get('emoji', '❓')
+    source_text = "reserved" if source == 'reserved' else f"level {mapped_level[-1]}"
+    return True, f"Turn {state['turn_count']}: {username} purchased a {source_text} card ({resource_emoji})"
+
+def determine_winner(state):
+    max_prestige = 0
+    winners = []
+    for player_id, player_data in state['players'].items():
+        prestige = player_data['prestige']
+        if prestige > max_prestige:
+            max_prestige = prestige
+            winners = [(player_id, len(player_data['cards']))]
+        elif prestige == max_prestige:
+            winners.append((player_id, len(player_data['cards'])))
+
+    min_cards = min(card_count for _, card_count in winners) if winners else 0
+    final_winners = [pid for pid, card_count in winners if card_count == min_cards]
+    
+    winner_names = [
+        state['joined_players'].get(state['players'][pid]['user_id'], {}).get('username', 'Unknown')
+        for pid in final_winners
+    ]
+    if len(winner_names) > 1:
+        return f"Game ended! Tied winners: {', '.join(winner_names)} with {max_prestige} prestige and {min_cards} cards each."
+    return f"Game ended! Winner: {winner_names[0]} with {max_prestige} prestige and {min_cards} cards."
 
 def next_turn(state):
     current_index = state['turn_order'].index(state['current_turn'])
     next_index = (current_index + 1) % len(state['turn_order'])
     state['current_turn'] = state['turn_order'][next_index]
     state['turn_count'] += 1
+
+    # Check for end game condition
+    player_id = f'player_{state['turn_order'].index(state['current_turn']) + 1}'
+    if state['players'][player_id]['prestige'] >= 15 and not state['end_triggered']:
+        state['end_triggered'] = True
+        state['final_round'] = True
+
+    # Check if final round is complete
+    if state['final_round'] and next_index == 0:
+        state['game_active'] = False
+        return determine_winner(state)
+    return None

@@ -2,8 +2,8 @@ import random
 from games.splendor.mechanics import setup_game, take_three_different, take_two_same, reserve_card, purchase_card, next_turn
 from games.splendor.display import display_board
 
-game_state = {}
-BOARD_REPOST_TURNS = 1
+game_state = {} 
+BOARD_REPOST_TURNS = 1 # Number of turns after which the board is repos ted
 
 async def handle_start(ctx):
     user_id = ctx.author.id
@@ -33,7 +33,7 @@ async def handle_join(ctx, user_id):
         return
 
     state['joined_players'][ctx.author.id] = {'username': ctx.author.name}
-    await ctx.send(f"{ctx.author.name} has joined the game. {len(state['joined_players'])}/{state['players_needed']} players joined.")
+    await ctx.send(f"{ctx.author.name} has joined the game. {len(state['joined_players'])}/{state['players_needed']} players have joined. Start the game with `$start` when ready.")
 
 async def handle_start_game(ctx, user_id):
     if user_id not in game_state or not game_state[user_id].get('game_pending'):
@@ -70,7 +70,7 @@ async def handle_start_game(ctx, user_id):
     message = await ctx.send(board_display)
     game_state[user_id]['last_board_message_id'] = message.id  # Store initial board message ID
 
-async def update_board_message(ctx, state, board_display): # helper
+async def update_board_message(ctx, state, board_display):
     if state['turn_count'] % BOARD_REPOST_TURNS == 0 or state['last_board_message_id'] is None:
         new_message = await ctx.send(board_display)
         state['last_board_message_id'] = new_message.id
@@ -95,9 +95,11 @@ async def handle_take_three(ctx, user_id, colors):
     success, message = take_three_different(state, player_id, colors)
     await ctx.send(message)
     if success:
-        next_turn(state)
+        winner_message = next_turn(state)
         board_display = display_board(state)
         await update_board_message(ctx, state, board_display)
+        if winner_message:
+            await ctx.send(winner_message)
 
 async def handle_take_two(ctx, user_id, color):
     state = game_state.get(user_id)
@@ -111,9 +113,11 @@ async def handle_take_two(ctx, user_id, color):
     success, message = take_two_same(state, player_id, color)
     await ctx.send(message)
     if success:
-        next_turn(state)
+        winner_message = next_turn(state)
         board_display = display_board(state)
         await update_board_message(ctx, state, board_display)
+        if winner_message:
+            await ctx.send(winner_message)
 
 async def handle_reserve(ctx, user_id, level, card_index):
     state = game_state.get(user_id)
@@ -127,9 +131,11 @@ async def handle_reserve(ctx, user_id, level, card_index):
     success, message = reserve_card(state, player_id, level, card_index)
     await ctx.send(message)
     if success:
-        next_turn(state)
+        winner_message = next_turn(state)
         board_display = display_board(state)
         await update_board_message(ctx, state, board_display)
+        if winner_message:
+            await ctx.send(winner_message)
 
 async def handle_purchase(ctx, user_id, source, level, card_index):
     state = game_state.get(user_id)
@@ -143,6 +149,8 @@ async def handle_purchase(ctx, user_id, source, level, card_index):
     success, message = purchase_card(state, player_id, source, level, card_index)
     await ctx.send(message)
     if success:
-        next_turn(state)
+        winner_message = next_turn(state)
         board_display = display_board(state)
         await update_board_message(ctx, state, board_display)
+        if winner_message:
+            await ctx.send(winner_message)
